@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zivioband – Gesundheits-Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f1117;
+      color: #e1e4ea;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #1a1d27;
+      border-bottom: 1px solid #2a2d3a;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, #e84393, #7c3aed);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+
+    .logo h1 { font-size: 18px; font-weight: 700; }
+    .logo span { font-size: 12px; color: #6b7280; }
+
+    .user-select {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .user-select label { font-size: 13px; color: #9ca3af; }
+
+    .user-select input {
+      background: #2a2d3a;
+      border: 1px solid #3a3d4a;
+      border-radius: 8px;
+      color: #e1e4ea;
+      padding: 6px 12px;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .user-select input:focus { border-color: #e84393; }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 0 6px #22c55e;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .card {
+      background: #1a1d27;
+      border: 1px solid #2a2d3a;
+      border-radius: 16px;
+      padding: 20px;
+      transition: border-color 0.2s;
+    }
+
+    .card:hover { border-color: #3a3d4a; }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .card-label {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #6b7280;
+    }
+
+    .card-icon {
+      font-size: 20px;
+    }
+
+    .card-value {
+      font-size: 48px;
+      font-weight: 800;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+
+    .card-unit {
+      font-size: 14px;
+      color: #6b7280;
+      margin-bottom: 8px;
+    }
+
+    .card-sub {
+      font-size: 12px;
+      color: #4b5563;
+    }
+
+    .heart { color: #e84393; }
+    .steps { color: #f59e0b; }
+    .sleep { color: #7c3aed; }
+    .sos-active { color: #ef4444; }
+    .sos-ok { color: #22c55e; }
+
+    .card-sos { border-color: #ef4444; }
+    .card-sos.ok { border-color: #22c55e; }
+
+    .chart-card {
+      background: #1a1d27;
+      border: 1px solid #2a2d3a;
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+
+    .chart-card h2 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: #d1d5db;
+    }
+
+    canvas { max-height: 200px; }
+
+    .alarm-list {
+      background: #1a1d27;
+      border: 1px solid #2a2d3a;
+      border-radius: 16px;
+      padding: 20px;
+    }
+
+    .alarm-list h2 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: #d1d5db;
+    }
+
+    .alarm-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid #2a2d3a;
+    }
+
+    .alarm-item:last-child { border-bottom: none; }
+
+    .alarm-info { flex: 1; }
+    .alarm-time { font-size: 12px; color: #6b7280; margin-top: 2px; }
+    .alarm-coords { font-size: 11px; color: #4b5563; margin-top: 2px; font-family: monospace; }
+
+    .badge {
+      padding: 3px 10px;
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .badge-active { background: #450a0a; color: #ef4444; }
+    .badge-resolved { background: #052e16; color: #22c55e; }
+
+    .btn-resolve {
+      background: #1f2937;
+      border: 1px solid #374151;
+      color: #d1d5db;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      margin-left: 8px;
+      transition: background 0.2s;
+    }
+
+    .btn-resolve:hover { background: #374151; }
+
+    .empty {
+      text-align: center;
+      color: #4b5563;
+      padding: 32px;
+      font-size: 14px;
+    }
+
+    .last-update {
+      text-align: right;
+      font-size: 11px;
+      color: #374151;
+      margin-top: 16px;
+    }
+
+    .sleep-bar {
+      display: flex;
+      gap: 4px;
+      margin-top: 8px;
+      height: 8px;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .sleep-deep { background: #7c3aed; flex: var(--deep); }
+    .sleep-light { background: #a78bfa; flex: var(--light); }
+    .sleep-rem { background: #c4b5fd; flex: var(--rem); }
+
+    .sleep-legend {
+      display: flex;
+      gap: 12px;
+      margin-top: 6px;
+      font-size: 11px;
+      color: #6b7280;
+    }
+
+    .sleep-legend span { display: flex; align-items: center; gap: 4px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">&#128150;</div>
+    <div>
+      <h1>Zivioband</h1>
+      <span>Gesundheits-Dashboard</span>
+    </div>
+  </div>
+  <div class="user-select">
+    <div class="status-dot" id="statusDot"></div>
+    <label>User-ID:</label>
+    <input type="text" id="userId" placeholder="z.B. user123" value="user1" />
+  </div>
+</header>
+
+<main>
+  <div class="grid">
+    <div class="card" id="cardHeart">
+      <div class="card-header">
+        <span class="card-label">Herzfrequenz</span>
+        <span class="card-icon">&#128151;</span>
+      </div>
+      <div class="card-value heart" id="bpmValue">--</div>
+      <div class="card-unit">BPM</div>
+      <div class="card-sub" id="bpmTime">Kein Messwert</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-label">Schritte heute</span>
+        <span class="card-icon">&#128694;</span>
+      </div>
+      <div class="card-value steps" id="stepsValue">--</div>
+      <div class="card-unit">Schritte</div>
+      <div class="card-sub" id="stepsCalories"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-label">Letzte Nacht</span>
+        <span class="card-icon">&#127769;</span>
+      </div>
+      <div class="card-value sleep" id="sleepValue">--</div>
+      <div class="card-unit">Stunden Schlaf</div>
+      <div class="sleep-bar" id="sleepBar" style="display:none">
+        <div class="sleep-deep" id="sleepDeep"></div>
+        <div class="sleep-light" id="sleepLight"></div>
+        <div class="sleep-rem" id="sleepRem"></div>
+      </div>
+      <div class="sleep-legend" id="sleepLegend" style="display:none">
+        <span><span class="dot" style="background:#7c3aed"></span>Tief</span>
+        <span><span class="dot" style="background:#a78bfa"></span>Leicht</span>
+        <span><span class="dot" style="background:#c4b5fd"></span>REM</span>
+      </div>
+    </div>
+
+    <div class="card" id="cardSos">
+      <div class="card-header">
+        <span class="card-label">SOS Status</span>
+        <span class="card-icon">&#128680;</span>
+      </div>
+      <div class="card-value sos-ok" id="sosValue">0</div>
+      <div class="card-unit">Aktive Alarme</div>
+      <div class="card-sub" id="sosSub">Alles in Ordnung</div>
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <h2>Herzfrequenz-Verlauf (letzte 50 Messwerte)</h2>
+    <canvas id="hrChart"></canvas>
+  </div>
+
+  <div class="alarm-list">
+    <h2>SOS-Alarme</h2>
+    <div id="alarmList"><div class="empty">Keine Alarme</div></div>
+  </div>
+
+  <div class="last-update">Letzte Aktualisierung: <span id="lastUpdate">--</span></div>
+</main>
+
+<script>
+  let hrChart = null;
+
+  function formatTime(iso) {
+    if (!iso) return '--';
+    const d = new Date(iso);
+    return d.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  }
+
+  function formatMinutes(min) {
+    if (!min) return '--';
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  }
+
+  async function fetchData() {
+    const userId = document.getElementById('userId').value.trim();
+    if (!userId) return;
+
+    try {
+      const res = await fetch(`/health/${encodeURIComponent(userId)}`);
+      if (!res.ok) throw new Error('Fehler beim Laden');
+      const data = await res.json();
+      updateDashboard(data);
+      document.getElementById('statusDot').style.background = '#22c55e';
+      document.getElementById('statusDot').style.boxShadow = '0 0 6px #22c55e';
+    } catch (e) {
+      document.getElementById('statusDot').style.background = '#ef4444';
+      document.getElementById('statusDot').style.boxShadow = '0 0 6px #ef4444';
+    }
+
+    document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('de-DE');
+  }
+
+  function updateDashboard(data) {
+    const s = data.summary;
+
+    // Herzfrequenz
+    if (s.latestBpm !== null) {
+      document.getElementById('bpmValue').textContent = s.latestBpm;
+      const last = data.heartrate[data.heartrate.length - 1];
+      document.getElementById('bpmTime').textContent = last ? 'Zuletzt: ' + formatTime(last.timestamp) : '';
+
+      const el = document.getElementById('bpmValue');
+      el.className = 'card-value';
+      if (s.latestBpm < 60) el.classList.add('sleep');
+      else if (s.latestBpm <= 100) el.classList.add('heart');
+      else el.classList.add('sos-active');
+    } else {
+      document.getElementById('bpmValue').textContent = '--';
+      document.getElementById('bpmTime').textContent = 'Noch keine Daten vom Band';
+    }
+
+    // Schritte
+    document.getElementById('stepsValue').textContent = s.stepsToday !== null ? s.stepsToday.toLocaleString('de-DE') : '--';
+    const todayEntries = data.steps.filter(e => e.date === new Date().toISOString().split('T')[0]);
+    const totalCal = todayEntries.reduce((sum, e) => sum + (e.calories || 0), 0);
+    document.getElementById('stepsCalories').textContent = totalCal > 0 ? `~ ${totalCal} kcal` : '';
+
+    // Schlaf
+    if (s.lastSleepDuration !== null) {
+      const hours = (s.lastSleepDuration / 60).toFixed(1);
+      document.getElementById('sleepValue').textContent = hours;
+      const lastSleep = data.sleep[data.sleep.length - 1];
+      if (lastSleep && (lastSleep.deepSleep || lastSleep.lightSleep || lastSleep.remSleep)) {
+        const total = (lastSleep.deepSleep || 0) + (lastSleep.lightSleep || 0) + (lastSleep.remSleep || 0);
+        if (total > 0) {
+          document.getElementById('sleepDeep').style.setProperty('--deep', lastSleep.deepSleep || 0);
+          document.getElementById('sleepLight').style.setProperty('--light', lastSleep.lightSleep || 0);
+          document.getElementById('sleepRem').style.setProperty('--rem', lastSleep.remSleep || 0);
+          document.getElementById('sleepBar').style.display = 'flex';
+          document.getElementById('sleepLegend').style.display = 'flex';
+        }
+      }
+    } else {
+      document.getElementById('sleepValue').textContent = '--';
+    }
+
+    // SOS
+    const activeAlarms = s.activeAlarms || 0;
+    document.getElementById('sosValue').textContent = activeAlarms;
+    const sosEl = document.getElementById('sosValue');
+    sosEl.className = 'card-value ' + (activeAlarms > 0 ? 'sos-active' : 'sos-ok');
+    document.getElementById('sosSub').textContent = activeAlarms > 0 ? 'NOTFALL AKTIV!' : 'Alles in Ordnung';
+    document.getElementById('cardSos').className = 'card ' + (activeAlarms > 0 ? 'card-sos' : 'card-sos ok');
+
+    // Herzfrequenz-Chart
+    const labels = data.heartrate.map(e => formatTime(e.timestamp));
+    const bpms = data.heartrate.map(e => e.bpm);
+
+    if (hrChart) {
+      hrChart.data.labels = labels;
+      hrChart.data.datasets[0].data = bpms;
+      hrChart.update();
+    } else {
+      const ctx = document.getElementById('hrChart').getContext('2d');
+      hrChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'BPM',
+            data: bpms,
+            borderColor: '#e84393',
+            backgroundColor: 'rgba(232,67,147,0.1)',
+            borderWidth: 2,
+            pointRadius: 3,
+            pointBackgroundColor: '#e84393',
+            tension: 0.4,
+            fill: true
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: {
+              ticks: { color: '#6b7280', font: { size: 10 }, maxTicksLimit: 8 },
+              grid: { color: '#1f2937' }
+            },
+            y: {
+              ticks: { color: '#6b7280' },
+              grid: { color: '#1f2937' },
+              suggestedMin: 40,
+              suggestedMax: 160
+            }
+          }
+        }
+      });
+    }
+
+    // Alarm-Liste
+    const alarmList = document.getElementById('alarmList');
+    if (!data.alarms || data.alarms.length === 0) {
+      alarmList.innerHTML = '<div class="empty">Keine Alarme</div>';
+    } else {
+      const sorted = [...data.alarms].sort((a, b) => new Date(b.triggeredAt) - new Date(a.triggeredAt));
+      alarmList.innerHTML = sorted.map(alarm => `
+        <div class="alarm-item">
+          <div class="alarm-info">
+            <div>${alarm.message || 'SOS-Alarm ausgelöst'}</div>
+            <div class="alarm-time">${formatTime(alarm.triggeredAt)}</div>
+            <div class="alarm-coords">Koordinaten: ${alarm.coordinates.lat}, ${alarm.coordinates.lng}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="badge ${alarm.status === 'active' ? 'badge-active' : 'badge-resolved'}">
+              ${alarm.status === 'active' ? 'AKTIV' : 'Gelöst'}
+            </span>
+            ${alarm.status === 'active' ? `<button class="btn-resolve" onclick="resolveAlarm('${alarm.id}')">Auflösen</button>` : ''}
+          </div>
+        </div>
+      `).join('');
+    }
+  }
+
+  async function resolveAlarm(id) {
+    await fetch(`/alarms/${id}/resolve`, { method: 'PUT' });
+    fetchData();
+  }
+
+  document.getElementById('userId').addEventListener('change', fetchData);
+
+  // Initial laden und dann alle 10 Sekunden aktualisieren
+  fetchData();
+  setInterval(fetchData, 10000);
+</script>
+
+</body>
+</html>
