@@ -9,6 +9,16 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// ── SSE-Clients ────────────────────────────────────────────────────────────
+const sseClients = new Set();
+
+function pushEvent(eventName, data) {
+    const payload = `event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`;
+    for (const client of sseClients) {
+        client.write(payload);
+    }
+}
+
 const PORT = process.env.PORT || 3000;
 const WEBHOOK_URL = process.env.WEBHOOK_URL;
 const ALARMS_FILE = path.join(__dirname, 'data', 'alarms.json');
@@ -76,6 +86,8 @@ app.post('/sos', async (req, res) => {
     writeAlarms(alarms);
 
     console.log(`[SOS] Alarm — User: ${userId} | Koordinaten: ${lat}, ${lng}`);
+
+    pushEvent('sos_alarm', alarm);
 
     let webhookResult;
     try {
@@ -234,6 +246,20 @@ app.get('/health/:userId', (req, res) => {
         sleep: userSleep.slice(-14),
         alarms: userAlarms
     });
+});
+
+// ── SSE-Route ──────────────────────────────────────────────────────────────
+
+app.get('/events', (req, res) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    res.write(`event: connected\ndata: {"status":"ok"}\n\n`);
+    sseClients.add(res);
+
+    req.on('close', () => sseClients.delete(res));
 });
 
 // ── Dashboard-Route ────────────────────────────────────────────────────────

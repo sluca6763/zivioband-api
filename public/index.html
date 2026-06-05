@@ -230,6 +230,65 @@
       margin-top: 16px;
     }
 
+    /* SOS-Overlay */
+    #sosOverlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(239,68,68,0.15);
+      z-index: 100;
+      pointer-events: none;
+      animation: sosFlash 0.6s ease-in-out infinite;
+    }
+
+    @keyframes sosFlash {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    #sosAlert {
+      display: none;
+      position: fixed;
+      top: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #ef4444;
+      color: white;
+      padding: 16px 28px;
+      border-radius: 14px;
+      font-size: 16px;
+      font-weight: 700;
+      z-index: 200;
+      box-shadow: 0 0 40px rgba(239,68,68,0.7);
+      display: none;
+      align-items: center;
+      gap: 12px;
+      max-width: 90vw;
+    }
+
+    #sosAlert.visible {
+      display: flex;
+      animation: slideDown 0.3s ease;
+    }
+
+    @keyframes slideDown {
+      from { transform: translateX(-50%) translateY(-20px); opacity: 0; }
+      to   { transform: translateX(-50%) translateY(0);    opacity: 1; }
+    }
+
+    #sosAlert button {
+      background: rgba(255,255,255,0.2);
+      border: 1px solid rgba(255,255,255,0.4);
+      color: white;
+      padding: 4px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    #sosAlert button:hover { background: rgba(255,255,255,0.3); }
+
     .sleep-bar {
       display: flex;
       gap: 4px;
@@ -256,6 +315,16 @@
   </style>
 </head>
 <body>
+
+<div id="sosOverlay"></div>
+<div id="sosAlert">
+  <span>&#128680;</span>
+  <div>
+    <div id="sosAlertText">SOS-ALARM!</div>
+    <div id="sosAlertSub" style="font-size:12px;font-weight:400;opacity:0.85;margin-top:2px"></div>
+  </div>
+  <button onclick="dismissSosAlert()">Schliessen</button>
+</div>
 
 <header>
   <div class="logo">
@@ -499,6 +568,85 @@
   }
 
   document.getElementById('userId').addEventListener('change', fetchData);
+
+  // ── SOS-Alert ───────────────────────────────────────────────────────────
+  let sosAudio = null;
+  let sosFlashInterval = null;
+
+  function showSosAlert(alarm) {
+    const overlay = document.getElementById('sosOverlay');
+    const alert = document.getElementById('sosAlert');
+    const text = document.getElementById('sosAlertText');
+    const sub = document.getElementById('sosAlertSub');
+
+    text.textContent = `SOS-ALARM — ${alarm.userId}`;
+    sub.textContent = `Koordinaten: ${alarm.coordinates.lat}, ${alarm.coordinates.lng}${alarm.message ? ' • ' + alarm.message : ''}`;
+
+    overlay.style.display = 'block';
+    alert.classList.add('visible');
+
+    // Akustischer Alarm (Beep-Sequenz mit Web Audio API)
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      function beep() {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'square';
+        osc.frequency.value = 880;
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.3);
+      }
+      let count = 0;
+      sosAudio = setInterval(() => {
+        beep();
+        if (++count >= 6) clearInterval(sosAudio);
+      }, 500);
+    } catch (e) {}
+
+    // Browser-Benachrichtigung
+    if (Notification.permission === 'granted') {
+      new Notification('SOS-ALARM!', {
+        body: `${alarm.userId} braucht Hilfe! ${alarm.coordinates.lat}, ${alarm.coordinates.lng}`,
+        icon: '/favicon.ico',
+        requireInteraction: true
+      });
+    }
+
+    // Dashboard neu laden
+    fetchData();
+  }
+
+  function dismissSosAlert() {
+    document.getElementById('sosOverlay').style.display = 'none';
+    document.getElementById('sosAlert').classList.remove('visible');
+    if (sosAudio) clearInterval(sosAudio);
+  }
+
+  // Benachrichtigungserlaubnis anfragen
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+
+  // ── SSE-Verbindung ───────────────────────────────────────────────────────
+  function connectSSE() {
+    const es = new EventSource('/events');
+
+    es.addEventListener('sos_alarm', (e) => {
+      const alarm = JSON.parse(e.data);
+      showSosAlert(alarm);
+    });
+
+    es.addEventListener('error', () => {
+      es.close();
+      setTimeout(connectSSE, 5000);
+    });
+  }
+
+  connectSSE();
 
   // Initial laden und dann alle 10 Sekunden aktualisieren
   fetchData();
